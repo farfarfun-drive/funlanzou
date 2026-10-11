@@ -25,6 +25,10 @@
 
 ### 修复
 
+- 统一发行元数据、版本脚本、API 与 GUI 展示的版本号为 `0.2.0`；正式发布时仍由
+  `funbuild` 统一更新。
+- 合并分卷文件时，损坏或无法读取的记录文件现在会记录包含文件路径的错误上下文，
+  不再吞掉所有异常。
 - 源码布局迁移到标准 `src/funlanzou/`、`src/lanzou/`，同步更新
   `[tool.hatch.build.targets.wheel]` 打包配置。
 - `funlanzou/debug.py` 不再在 import 时创建配置目录、配置全局 logging

@@ -113,6 +113,13 @@ def refresh_available_domains(timeout: float = 5.0) -> list[str]:
 
 
 class LanZouCloud(object):
+    """蓝奏云网盘 API 客户端。
+
+    用于登录、管理网盘文件和文件夹，以及查询分享信息、获取下载直链。
+    各操作返回本类定义的状态码或对应的数据对象；网络不可用时通常返回
+    ``NETWORK_ERROR``，具体返回值见各方法说明。
+    """
+
     FAILED = -1
     SUCCESS = 0
     ID_ERROR = 1
@@ -305,7 +312,15 @@ class LanZouCloud(object):
         return self._cookies
 
     def login_by_cookie(self, cookie: dict[str, str]) -> int:
-        """通过cookie登录"""
+        """通过 Cookie 登录蓝奏云控制台。
+
+        Args:
+            cookie: 浏览器或登录辅助工具导出的 Cookie 键值对。
+
+        Returns:
+            登录有效时返回 ``SUCCESS``；Cookie 已失效返回 ``FAILED``；
+            账号页无法访问时返回 ``NETWORK_ERROR``。
+        """
         self._session.cookies.update(cookie)
         html = self._get(self._account_url)
         if not html:
@@ -313,14 +328,28 @@ class LanZouCloud(object):
         return LanZouCloud.FAILED if '网盘用户登录' in html.text else LanZouCloud.SUCCESS
 
     def logout(self) -> int:
-        """注销"""
+        """注销当前蓝奏云控制台会话。
+
+        Returns:
+            注销成功返回 ``SUCCESS``；服务端未确认注销时返回 ``FAILED``；
+            网络不可用时返回 ``NETWORK_ERROR``。
+        """
         html = self._get(self._account_url, params={'action': 'logout'})
         if not html:
             return LanZouCloud.NETWORK_ERROR
         return LanZouCloud.SUCCESS if '退出系统成功' in html.text else LanZouCloud.FAILED
 
     def delete(self, fid: int, is_file: bool = True) -> int:
-        """把网盘的文件、无子文件夹的文件夹放到回收站"""
+        """将文件或不含子文件夹的文件夹移入回收站。
+
+        Args:
+            fid: 待删除文件或文件夹的 ID。
+            is_file: ``True`` 表示 ``fid`` 是文件；``False`` 表示文件夹。
+
+        Returns:
+            删除成功返回 ``SUCCESS``；服务端拒绝时返回 ``FAILED``；
+            网络不可用时返回 ``NETWORK_ERROR``。
+        """
         post_data = {'task': 6, 'file_id': fid} if is_file else {'task': 3, 'folder_id': fid}
         result = self._post(self.doupload_url, post_data)
         if not result:
@@ -771,14 +800,29 @@ class LanZouCloud(object):
                           desc=f_desc, pwd=pwd, url=share_url, durl=direct_url)
 
     def get_file_info_by_id(self, file_id: int) -> FileDetail:
-        """通过 id 获取文件信息"""
+        """根据已登录账号中的文件 ID 获取分享文件详情。
+
+        Args:
+            file_id: 文件 ID。
+
+        Returns:
+            ``FileDetail``；查询分享信息失败时，其 ``code`` 为相应错误码。
+        """
         info = self.get_share_info(file_id)
         if info.code != LanZouCloud.SUCCESS:
             return FileDetail(info.code)
         return self.get_file_info_by_url(info.url, info.pwd)
 
     def get_durl_by_url(self, share_url: str, pwd: str = '') -> DirectUrlInfo:
-        """通过分享链接获取下载直链"""
+        """通过文件分享链接获取下载直链。
+
+        Args:
+            share_url: 蓝奏云文件分享链接。
+            pwd: 分享链接的提取码；无提取码时保留为空字符串。
+
+        Returns:
+            ``DirectUrlInfo``；获取失败时其 ``code`` 为对应错误码，直链字段为空。
+        """
         file_info = self.get_file_info_by_url(share_url, pwd)
         if file_info.code != LanZouCloud.SUCCESS:
             return DirectUrlInfo(file_info.code, '', '')
