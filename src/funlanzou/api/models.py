@@ -33,45 +33,98 @@ class ItemList:
 
     @property
     def name_id(self):
-        """所有 item 的 name-id 列表，兼容旧版"""
+        """所有 item 的 name-id 映射，兼容旧版。
+
+        Returns:
+            `{名称: id}` 字典；同名元素只保留最后一个。
+        """
         return {it.name: it.id for it in self}
 
     @property
     def all_name(self):
-        """所有 item 的 name 列表"""
+        """所有 item 的 name 列表。
+
+        Returns:
+            按容器顺序排列的名称列表。
+        """
         return [it.name for it in self]
 
     def append(self, item: Any) -> None:
-        """在末尾插入元素"""
+        """在末尾插入元素。
+
+        Args:
+            item: 至少具有 `name`、`id` 属性的 namedtuple 元素。
+
+        Returns:
+            无返回值。
+        """
         self._items.append(item)
 
     def index(self, item: Any) -> int:
-        """获取索引"""
+        """获取元素在容器中的索引。
+
+        Args:
+            item: 容器中的元素。
+
+        Returns:
+            元素首次出现的下标；元素不存在时抛 `ValueError`。
+        """
         return self._items.index(item)
 
     def insert(self, pos: int, item: Any) -> None:
-        """指定位置插入元素"""
+        """在指定位置插入元素。
+
+        Args:
+            pos: 插入位置，语义与 `list.insert` 相同。
+            item: 至少具有 `name`、`id` 属性的 namedtuple 元素。
+
+        Returns:
+            无返回值。
+        """
         self._items.insert(pos, item)
 
     def clear(self):
-        """清空元素"""
+        """清空容器中的所有元素。
+
+        Returns:
+            无返回值。
+        """
         self._items.clear()
 
     def filter(self, condition: Callable[[Any], bool]) -> list[Any]:
-        """筛选出满足条件的 item
-        condition(item) -> True
+        """筛选出满足条件的元素。
+
+        Args:
+            condition: 判定函数，对元素返回 `True` 表示保留。
+
+        Returns:
+            满足条件的元素列表（普通 `list`，不是容器类型）。
         """
         return [it for it in self if condition(it)]
 
     def find_by_name(self, name: str) -> Any | None:
-        """使用文件名搜索(仅返回首个匹配项)"""
+        """按名称精确搜索元素。
+
+        Args:
+            name: 文件或文件夹名称。
+
+        Returns:
+            首个名称相同的元素；未找到时返回 `None`。
+        """
         for item in self:
             if name == item.name:
                 return item
         return None
 
     def find_by_id(self, fid: int) -> Any | None:
-        """使用 id 搜索(精确)"""
+        """按 id 精确搜索元素。
+
+        Args:
+            fid: 文件或文件夹 id。
+
+        Returns:
+            首个 id 相同的元素；未找到时返回 `None`。
+        """
         for item in self:
             if fid == item.id:
                 return item
@@ -84,7 +137,7 @@ class ItemList:
             fid: 要移除的文件或文件夹 ID。
 
         Returns:
-            匹配并移除的元素；未找到时返回 ``None``。
+            匹配并移除的元素；未找到时返回 `None`。
         """
         for item in self:
             if item.id == fid:
@@ -93,7 +146,15 @@ class ItemList:
         return None
 
     def update_by_id(self, fid: int, **kwargs: Any) -> None:
-        """通过 id 搜索元素并更新"""
+        """按 id 搜索元素并更新其字段。
+
+        Args:
+            fid: 文件或文件夹 id。
+            **kwargs: 要覆盖的字段，必须是元素 namedtuple 已有的字段名。
+
+        Returns:
+            无返回值。id 不存在时抛 `ValueError`。
+        """
         item = self.find_by_id(fid)
         pos = self.index(item)
         data = item._asdict()

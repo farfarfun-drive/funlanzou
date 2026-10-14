@@ -25,12 +25,12 @@ print(result.code)
 
 `LanZouCloud.login(username, passwd)` 已弃用。蓝奏云官方登录页改版后，账号密码
 登录对多数新账号已失效；请改用 `login_by_cookie()`，并通过
-`funlanzou.login_assister` 或浏览器 Cookie 导出获取 Cookie。该方法计划在下一次
-破坏性版本中移除。
+`funlanzou.login_assister` 或浏览器 Cookie 导出获取 Cookie。该方法计划在 `1.0`
+（下一次破坏性版本）移除。
 
 包内导入路径 `lanzou` 仍作为兼容层保留，但会发出 `DeprecationWarning`。请将
 `import lanzou` 或 `from lanzou...` 迁移为 `import funlanzou` 或
-`from funlanzou...`；兼容层计划在下一次破坏性版本中删除。
+`from funlanzou...`；兼容层计划在 `1.0`（下一次破坏性版本）删除。
 
 ## 图形客户端
 

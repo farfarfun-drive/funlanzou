@@ -242,14 +242,31 @@ class LanZouCloud(object):
         return [url.replace('lanzoub.com', d) for d in available_domains]
 
     def set_max_size(self, max_size: int = 100) -> int:
-        """设置单文件大小限制(会员用户可超过 100M)"""
+        """设置单文件大小限制(会员用户可超过 100M)。
+
+        Args:
+            max_size: 单文件大小上限，单位 MB，必须不小于 1。
+
+        Returns:
+            `LanZouCloud.SUCCESS` 设置成功；`LanZouCloud.FAILED` 入参小于 1，
+            此时保留原有限制。
+        """
         if max_size < 1:
             return LanZouCloud.FAILED
         self._max_size = max_size
         return LanZouCloud.SUCCESS
 
     def set_upload_delay(self, t_range: tuple[float, float]) -> int:
-        """设置上传大文件数据块时，相邻两次上传之间的延时，减小被封号的可能"""
+        """设置上传大文件数据块时，相邻两次上传之间的延时，减小被封号的可能。
+
+        Args:
+            t_range: `(最小延时, 最大延时)` 二元组，单位秒，需满足
+                `0 <= 最小延时 <= 最大延时`。
+
+        Returns:
+            `LanZouCloud.SUCCESS` 设置成功；`LanZouCloud.FAILED` 区间非法，
+            此时保留原有延时。
+        """
         if 0 <= t_range[0] <= t_range[1]:
             self._upload_delay = t_range
             return LanZouCloud.SUCCESS
@@ -261,7 +278,7 @@ class LanZouCloud(object):
         .. deprecated::
             官方登录页已多次改版，账号密码登录对新注册用户大多已失效；请改用
             `login_by_cookie()`（配合 `funlanzou.login_assister` 或浏览器 Cookie
-            导出获取 Cookie）。计划在下一次破坏性版本中移除本方法。
+            导出获取 Cookie）。本方法计划在 `1.0`（下一次破坏性版本）移除。
 
         Args:
             username: 蓝奏云账号（手机号/邮箱/用户名）。
@@ -274,7 +291,7 @@ class LanZouCloud(object):
         """
         warnings.warn(
             "LanZouCloud.login 已弃用，官方登录页改版后对多数账号已失效，"
-            "请改用 login_by_cookie()；计划在下一次破坏性版本中移除。",
+            "请改用 login_by_cookie()；计划在 1.0（下一次破坏性版本）移除。",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -308,7 +325,12 @@ class LanZouCloud(object):
         return LanZouCloud.FAILED
 
     def get_cookie(self) -> dict[str, str] | None:
-        """获取用户 Cookie"""
+        """获取用户 Cookie。
+
+        Returns:
+            `login()` 成功后保存的 Cookie 键值对；未登录或通过
+            `login_by_cookie()` 登录时为 `None`（后者不回填该字段）。
+        """
         return self._cookies
 
     def login_by_cookie(self, cookie: dict[str, str]) -> int:
@@ -357,7 +379,12 @@ class LanZouCloud(object):
         return LanZouCloud.SUCCESS if result.json()['zt'] == 1 else LanZouCloud.FAILED
 
     def clean_rec(self) -> int:
-        """清空回收站"""
+        """清空回收站。
+
+        Returns:
+            `LanZouCloud.SUCCESS` 服务端确认清空成功；`LanZouCloud.FAILED`
+            服务端未确认；`LanZouCloud.NETWORK_ERROR` 回收站页面或提交请求失败。
+        """
         post_data = {'action': 'delete_all', 'task': 'delete_all'}
         html = self._get(self._mydisk_url, params={'item': 'recycle', 'action': 'files'})
         if not html:
@@ -369,7 +396,13 @@ class LanZouCloud(object):
         return LanZouCloud.SUCCESS if '清空回收站成功' in html.text else LanZouCloud.FAILED
 
     def get_rec_dir_list(self) -> FolderList:
-        """获取回收站文件夹列表"""
+        """获取回收站文件夹列表。
+
+        Returns:
+            `FolderList`，元素为 `RecFolder`；回收站页面请求失败时返回空列表。
+            回收站只显示名称前 17 个中文或 34 个英文字符，重名项会在名称后
+            追加 `(序号)` 以便区分。
+        """
         # 回收站中文件(夹)名只能显示前 17 个中文字符或者 34 个英文字符，如果这些字符相同，则在文件(夹)名后添加 (序号) ，以便区分
         html = self._get(self._mydisk_url, params={'item': 'recycle', 'action': 'files'})
         if not html:
@@ -391,7 +424,16 @@ class LanZouCloud(object):
         return all_dir_list
 
     def get_rec_file_list(self, folder_id: int = -1) -> FileList:
-        """获取回收站文件列表"""
+        """获取回收站文件列表。
+
+        Args:
+            folder_id: 回收站文件夹 id；`-1` 表示回收站根目录（其中也包含
+                回收站文件夹内的文件）。
+
+        Returns:
+            `FileList` 容器，元素为 `RecFile`；页面请求失败时返回空列表。
+            指定文件夹时只能取到文件名和大小，其余字段为空。
+        """
         if folder_id == -1:  # 列出回收站根目录文件
             # 回收站文件夹中的文件也会显示在根目录
             html = self._get(self._mydisk_url, params={'item': 'recycle', 'action': 'files'})
@@ -463,7 +505,16 @@ class LanZouCloud(object):
         return root_files, folder_list
 
     def delete_rec(self, fid: int, is_file: bool = True) -> int:
-        """彻底删除回收站文件(夹)"""
+        """彻底删除回收站中的文件或文件夹。
+
+        Args:
+            fid: 回收站中文件或文件夹的 id。
+            is_file: `True` 表示 `fid` 是文件；`False` 表示文件夹。
+
+        Returns:
+            `LanZouCloud.SUCCESS` 服务端确认删除；`LanZouCloud.FAILED`
+            服务端未确认；`LanZouCloud.NETWORK_ERROR` 页面或提交请求失败。
+        """
         # 彻底删除后需要 1.5s 才能调用 get_rec_file() ,否则信息没有刷新，被删掉的文件似乎仍然 "存在"
         if is_file:
             para = {'item': 'recycle', 'action': 'file_delete_complete', 'file_id': fid}
@@ -483,7 +534,17 @@ class LanZouCloud(object):
         return LanZouCloud.SUCCESS if '删除成功' in html.text else LanZouCloud.FAILED
 
     def delete_rec_multi(self, files: list[int], folders: list[int]) -> int:
-        """彻底删除回收站多个文件(夹)"""
+        """批量彻底删除回收站中的文件和文件夹。
+
+        Args:
+            files: 回收站文件 id 列表，可为空。
+            folders: 回收站文件夹 id 列表，可为空。
+
+        Returns:
+            `LanZouCloud.SUCCESS` 服务端确认删除；`LanZouCloud.FAILED`
+            两个列表都为空或服务端未确认；`LanZouCloud.NETWORK_ERROR`
+            页面或提交请求失败。
+        """
         # 与 recovery_all 几乎一样，task 表单值不一样
         if not files and not folders:
             return LanZouCloud.FAILED
@@ -503,7 +564,16 @@ class LanZouCloud(object):
         return LanZouCloud.SUCCESS if '删除成功' in html.text else LanZouCloud.FAILED
 
     def recovery(self, fid: int, is_file: bool = True) -> int:
-        """从回收站恢复文件"""
+        """从回收站恢复单个文件或文件夹。
+
+        Args:
+            fid: 回收站中文件或文件夹的 id。
+            is_file: `True` 表示 `fid` 是文件；`False` 表示文件夹。
+
+        Returns:
+            `LanZouCloud.SUCCESS` 服务端确认恢复；`LanZouCloud.FAILED`
+            服务端未确认；`LanZouCloud.NETWORK_ERROR` 页面或提交请求失败。
+        """
         if is_file:
             para = {'item': 'recycle', 'action': 'file_restore', 'file_id': fid}
             post_data = {'action': 'file_restore', 'task': 'file_restore', 'file_id': fid}
@@ -520,7 +590,17 @@ class LanZouCloud(object):
         return LanZouCloud.SUCCESS if '恢复成功' in html.text else LanZouCloud.FAILED
 
     def recovery_multi(self, files: list[int], folders: list[int]) -> int:
-        """从回收站恢复多个文件(夹)"""
+        """批量从回收站恢复文件和文件夹。
+
+        Args:
+            files: 回收站文件 id 列表，可为空。
+            folders: 回收站文件夹 id 列表，可为空。
+
+        Returns:
+            `LanZouCloud.SUCCESS` 服务端确认恢复；`LanZouCloud.FAILED`
+            两个列表都为空或服务端未确认；`LanZouCloud.NETWORK_ERROR`
+            页面或提交请求失败。
+        """
         if not files and not folders:
             return LanZouCloud.FAILED
         para = {'item': 'recycle', 'action': 'files'}
@@ -540,7 +620,12 @@ class LanZouCloud(object):
         return LanZouCloud.SUCCESS if '恢复成功' in html.text else LanZouCloud.FAILED
 
     def recovery_all(self) -> int:
-        """从回收站恢复所有文件(夹)"""
+        """从回收站恢复全部文件和文件夹。
+
+        Returns:
+            `LanZouCloud.SUCCESS` 服务端确认还原；`LanZouCloud.FAILED`
+            服务端未确认；`LanZouCloud.NETWORK_ERROR` 页面或提交请求失败。
+        """
         para = {'item': 'recycle', 'action': 'restore_all'}
         post_data = {'action': 'restore_all', 'task': 'restore_all'}
         first_page = self._get(self._mydisk_url, params=para)
@@ -600,7 +685,15 @@ class LanZouCloud(object):
         return file_list
 
     def get_dir_list(self, folder_id: int = -1) -> tuple[FolderList, FolderList]:
-        """获取子文件夹列表与全路径"""
+        """获取指定文件夹的子文件夹列表与所在全路径。
+
+        Args:
+            folder_id: 文件夹 id，`-1` 表示网盘根目录。
+
+        Returns:
+            `(子文件夹列表, 路径列表)` 二元组：前者元素为 `Folder`，后者元素为
+            `FolderId`（含根目录）。请求失败或 `folder_id` 无效时，对应列表为空。
+        """
         folder_list = FolderList()
         path_list = FolderList()
         post_data = {'task': 47, 'folder_id': folder_id}
@@ -631,7 +724,11 @@ class LanZouCloud(object):
 
     @property
     def doupload_url(self) -> str:
-        """带上当前登录态 cookie 的 doupload.php 接口地址。"""
+        """带上当前登录态 cookie 的 doupload.php 接口地址。
+
+        Returns:
+            接口地址；已登录时带上 `ylogin` 的值，未登录时为不带后缀的基础地址。
+        """
         return self._doupload_url + \
             (self._session.cookies["ylogin"] if "ylogin" in self._session.cookies else "")
 
@@ -668,7 +765,15 @@ class LanZouCloud(object):
         return LanZouCloud.SUCCESS
 
     def get_full_path(self, folder_id: int = -1) -> FolderList:
-        """获取文件夹完整路径"""
+        """获取文件夹从根目录开始的完整路径。
+
+        Args:
+            folder_id: 文件夹 id，`-1` 表示网盘根目录。
+
+        Returns:
+            `FolderList`，元素为 `FolderId`，首项固定为根目录；请求失败时只
+            返回根目录一项。
+        """
         path_list = FolderList()
         path_list.append(FolderId('根目录', -1))
         post_data = {'task': 47, 'folder_id': folder_id}
@@ -681,9 +786,18 @@ class LanZouCloud(object):
         return path_list
 
     def get_file_info_by_url(self, share_url: str, pwd: str = '') -> FileDetail:
-        """获取文件各种信息(包括下载直链)
-        :param share_url: 文件分享链接
-        :param pwd: 文件提取码(如果有的话)
+        """获取分享文件的各种信息，包括下载直链。
+
+        Args:
+            share_url: 蓝奏云文件分享链接。
+            pwd: 分享链接的提取码；无提取码时保留为空字符串。
+
+        Returns:
+            `FileDetail`。成功时 `code` 为 `LanZouCloud.SUCCESS` 且 `durl`
+            为下载直链；失败时 `code` 为 `URL_INVALID`（非文件链接）、
+            `FILE_CANCELLED`（文件已取消分享）、`LACK_PASSWORD`（需要提取码）、
+            `CAPTCHA_ERROR`（触发验证码）、`NETWORK_ERROR` 或 `FAILED`，
+            已解析到的名称、大小等字段会尽量保留。
         """
         if not is_file_url(share_url):  # 非文件链接返回错误
             return FileDetail(LanZouCloud.URL_INVALID, pwd=pwd, url=share_url)
@@ -829,12 +943,30 @@ class LanZouCloud(object):
         return DirectUrlInfo(LanZouCloud.SUCCESS, file_info.name, file_info.durl)
 
     def get_durl_by_id(self, file_id: int) -> DirectUrlInfo:
-        """登录用户通过id获取直链"""
+        """已登录用户通过网盘文件 id 获取下载直链。
+
+        Args:
+            file_id: 自己网盘中的文件 id。
+
+        Returns:
+            `DirectUrlInfo`；获取分享信息或直链失败时，其 `code` 为对应错误码，
+            直链字段为空。
+        """
         info = self.get_share_info(file_id, is_file=True)  # 能获取直链，一定是文件
         return self.get_durl_by_url(info.url, info.pwd)
 
     def get_share_info(self, fid: int, is_file: bool = True) -> ShareInfo:
-        """获取文件(夹)提取码、分享链接"""
+        """获取自己网盘中文件或文件夹的分享链接、提取码和描述。
+
+        Args:
+            fid: 文件或文件夹 id。
+            is_file: `True` 表示 `fid` 是文件；`False` 表示文件夹。
+
+        Returns:
+            `ShareInfo`。成功时 `code` 为 `LanZouCloud.SUCCESS`，未设置提取码时
+            `pwd` 为空字符串；`fid` 不存在或类型不匹配时 `code` 为
+            `LanZouCloud.ID_ERROR`，请求失败时为 `LanZouCloud.NETWORK_ERROR`。
+        """
         post_data = {'task': 22, 'file_id': fid} if is_file else {'task': 18, 'folder_id': fid}  # 获取分享链接和密码用
         f_info = self._post(self.doupload_url, post_data)
         if not f_info:
@@ -863,10 +995,20 @@ class LanZouCloud(object):
         return ShareInfo(LanZouCloud.SUCCESS, name=name, url=url, desc=desc, pwd=pwd)
 
     def set_passwd(self, fid: int, passwd: str = '', is_file: bool = True) -> int:
-        """
-        设置网盘文件(夹)的提取码, 现在非会员用户不允许关闭提取码
-        id 无效或者 id 类型不对应仍然返回成功 :(
-        文件夹提取码长度 0-12 位  文件提取码 2-6 位
+        """设置网盘文件或文件夹的提取码。
+
+        非会员用户不允许关闭提取码；`fid` 无效或与 `is_file` 不匹配时服务端
+        仍然返回成功，调用方不能据此判断 id 是否存在。
+
+        Args:
+            fid: 文件或文件夹 id。
+            passwd: 提取码，空字符串表示关闭提取码；文件夹 0-12 位，文件 2-6 位。
+            is_file: `True` 表示 `fid` 是文件；`False` 表示文件夹。
+
+        Returns:
+            `LanZouCloud.SUCCESS` 服务端接受设置；`LanZouCloud.FAILED`
+            服务端拒绝（如非会员关闭提取码、长度不合规）；
+            `LanZouCloud.NETWORK_ERROR` 请求失败。
         """
         passwd_status = 0 if passwd == '' else 1  # 是否开启密码
         if is_file:
@@ -879,7 +1021,18 @@ class LanZouCloud(object):
         return LanZouCloud.SUCCESS if result.json()['zt'] == 1 else LanZouCloud.FAILED
 
     def mkdir(self, parent_id: int, folder_name: str, desc: str = '') -> int:
-        """创建文件夹(同时设置描述)"""
+        """在指定父文件夹下创建文件夹，并同时设置描述。
+
+        Args:
+            parent_id: 父文件夹 id，`-1` 表示网盘根目录。
+            folder_name: 文件夹名，空格会替换为下划线并去除非法字符。
+            desc: 文件夹描述，可为空。
+
+        Returns:
+            新建文件夹的 id；同名文件夹已存在时直接返回已有 id；创建失败或
+            网络异常时返回 `LanZouCloud.MKDIR_ERROR`（正常 id 均为正数，可据此
+            区分）。
+        """
         folder_name = folder_name.replace(' ', '_')  # 文件夹名称不能包含空格
         folder_name = name_format(folder_name)  # 去除非法字符
         folder_list, _ = self.get_dir_list(parent_id)
@@ -911,7 +1064,17 @@ class LanZouCloud(object):
         return LanZouCloud.SUCCESS if result.json()['zt'] == 1 else LanZouCloud.FAILED
 
     def rename_dir(self, folder_id: int, folder_name: str) -> int:
-        """重命名文件夹"""
+        """重命名文件夹，保留原描述。
+
+        Args:
+            folder_id: 文件夹 id。
+            folder_name: 新文件夹名，非法字符会被去除。
+
+        Returns:
+            `LanZouCloud.SUCCESS` 服务端接受重命名；`LanZouCloud.FAILED`
+            服务端拒绝；`LanZouCloud.NETWORK_ERROR` 请求失败；
+            `LanZouCloud.ID_ERROR` 文件夹 id 不存在。
+        """
         # 重命名文件要开会员额
         info = self.get_share_info(folder_id, is_file=False)
         if info.code != LanZouCloud.SUCCESS:
@@ -919,7 +1082,18 @@ class LanZouCloud(object):
         return self._set_dir_info(folder_id, folder_name, info.desc)
 
     def set_desc(self, fid: int, desc: str, is_file: bool = True) -> int:
-        """设置文件(夹)描述"""
+        """设置文件或文件夹的描述。
+
+        Args:
+            fid: 文件或文件夹 id。
+            desc: 描述内容；文件夹可置空，文件描述一旦设置过就不能再改为空。
+            is_file: `True` 表示 `fid` 是文件；`False` 表示文件夹。
+
+        Returns:
+            `LanZouCloud.SUCCESS` 服务端接受设置；`LanZouCloud.FAILED`
+            服务端拒绝；`LanZouCloud.NETWORK_ERROR` 请求失败；
+            `LanZouCloud.ID_ERROR` 文件夹 id 不存在。
+        """
         if is_file:
             # 文件描述一旦设置了值，就不能再设置为空
             post_data = {'task': 11, 'file_id': fid, 'desc': desc}
@@ -954,7 +1128,13 @@ class LanZouCloud(object):
         return LanZouCloud.SUCCESS if result.json()['zt'] == 1 else LanZouCloud.FAILED
 
     def get_move_folders(self) -> FolderList:
-        """获取全部文件夹 id-name 列表，用于移动文件至新的文件夹"""
+        """获取全部文件夹的 id-name 列表，用于把文件移动到新的文件夹。
+
+        Returns:
+            `FolderList`，元素为 `FolderId`，首项固定为根目录（id 为 `-1`）；
+            获取失败或网络异常时只返回根目录一项。列表中可能包含网盘和回收站
+            都看不见的幽灵文件夹，可用 `clean_ghost_folders()` 清理。
+        """
         # 这里 file_id 可以为任意值,不会对结果产生影响
         result = FolderList()
         result.append(FolderId(name='根目录', id=-1, desc="", now=0))
@@ -968,7 +1148,14 @@ class LanZouCloud(object):
         return result
 
     def get_move_paths(self) -> list[FolderList]:
-        """获取所有文件夹的绝对路径(耗时长)"""
+        """获取所有文件夹的绝对路径，用于区分不同路径下的同名文件夹。
+
+        每个文件夹都要单独请求一次路径，文件夹较多时耗时较长。
+
+        Returns:
+            路径列表，每项是一个 `FolderList`（从根目录到该文件夹）；获取失败或
+            网络异常时只返回根目录这一条路径。
+        """
         result = []
         root = FolderList()
         root.append(FolderId('根目录', -1))
@@ -984,7 +1171,17 @@ class LanZouCloud(object):
         return sorted(result)
 
     def move_file(self, file_id: int, folder_id: int = -1) -> int:
-        """移动文件到指定文件夹"""
+        """把文件移动到指定文件夹。
+
+        Args:
+            file_id: 文件 id。
+            folder_id: 目标文件夹 id，`-1` 表示网盘根目录。
+
+        Returns:
+            `LanZouCloud.SUCCESS` 服务端接受移动；`LanZouCloud.FAILED`
+            服务端拒绝；`LanZouCloud.NETWORK_ERROR` 请求失败。移动回收站中的
+            文件服务端也会返回成功，但实际不生效。
+        """
         # 移动回收站文件也返回成功(实际上行不通) (+_+)?
         post_data = {'task': 20, 'file_id': file_id, 'folder_id': folder_id}
         result = self._post(self.doupload_url, post_data)
@@ -994,7 +1191,20 @@ class LanZouCloud(object):
         return LanZouCloud.SUCCESS if result.json()['zt'] == 1 else LanZouCloud.FAILED
 
     def move_folder(self, folder_id: int, parent_folder_id: int = -1) -> int:
-        """移动文件夹(官方并没有直接支持此功能)"""
+        """移动文件夹（官方未直接支持，实现为新建同名文件夹后搬运文件）。
+
+        只处理单层文件夹：带子文件夹的目录会直接拒绝，避免产生大量请求。
+        搬运完成后会删除原文件夹并清理其回收站记录，提取码保持一致。
+
+        Args:
+            folder_id: 待移动的文件夹 id。
+            parent_folder_id: 目标父文件夹 id，`-1` 表示网盘根目录。
+
+        Returns:
+            `LanZouCloud.SUCCESS` 移动完成；`LanZouCloud.FAILED` 出现以下情况：
+            目标与自身相同、`parent_folder_id` 小于 `-1`、文件夹不存在、
+            含子文件夹、创建目标文件夹失败或搬运某个文件失败。
+        """
         if folder_id == parent_folder_id or parent_folder_id < -1:
             return LanZouCloud.FAILED  # 禁止移动文件夹到自身，禁止移动到 -2 这样的文件夹(文件还在,但是从此不可见)
 
@@ -1186,11 +1396,20 @@ class LanZouCloud(object):
     def upload_dir(self, task: object, callback: object,
                    allow_big_file: bool = False) -> tuple[int, int | None, bool]:
         #  dir_path, folder_id=-1, callback=None, failed_callback=None, allow_big_file=False):
-        """批量上传文件夹中的文件(不会递归上传子文件夹)
-        :param folder_id: 网盘文件夹 id
-        :param dir_path: 文件夹路径
-        :param callback (filename, total_size, now_size) 用于显示进度
-        :param failed_callback (code, file) 用于处理上传失败的文件
+        """批量上传本地文件夹中的文件，不会递归上传子文件夹。
+
+        Args:
+            task: 上传任务对象，需提供 `url`（本地文件夹路径）和 `fid`（网盘
+                父文件夹 id）；执行过程中会更新 `current`、`info` 等字段。
+            callback: 进度回调，按 `(filename, total_size, now_size)` 调用。
+            allow_big_file: 是否允许把超过单文件大小限制的文件分段上传。
+
+        Returns:
+            `(状态码, 网盘文件夹 id, 是否已存在同名文件)` 三元组。成功时状态码为
+            `LanZouCloud.SUCCESS`；`task.url` 不是目录时为
+            `LanZouCloud.PATH_ERROR`，创建网盘文件夹失败时为
+            `LanZouCloud.MKDIR_ERROR`，这两种情况下文件夹 id 为 `None`，
+            且同样写入 `task.info`。单个文件上传失败不影响整体状态码。
         """
         if not os.path.isdir(task.url):
             task.info = LanZouCloud.PATH_ERROR
@@ -1567,7 +1786,19 @@ class LanZouCloud(object):
         return LanZouCloud.SUCCESS
 
     def down_dir_by_url(self, task: object, callback: object, parent_dir: str = "") -> int:
-        """通过分享链接下载文件夹"""
+        """通过分享链接下载整个文件夹，并递归下载其子文件夹。
+
+        Args:
+            task: 下载任务对象，需提供 `url`（文件夹分享链接）、`pwd`（提取码）
+                和 `path`（本地保存目录）；执行过程中会更新路径、进度等字段。
+            callback: 下载进度变化时调用的回调函数。
+            parent_dir: 递归下载子文件夹时传入的父目录，顶层调用无需传。
+
+        Returns:
+            `LanZouCloud.SUCCESS` 遍历完成；获取文件夹信息失败时返回对应错误码
+            并写入 `task.info`。分享内容实际是大文件分段数据时，返回值为合并
+            下载该大文件的结果。单个文件下载失败只记录日志，不改变返回值。
+        """
         folder_detail = self.get_folder_info_by_url(task.url, task.pwd)
         if folder_detail.code != LanZouCloud.SUCCESS:  # 获取文件信息失败
             task.info = folder_detail.code
@@ -1610,11 +1841,29 @@ class LanZouCloud(object):
 
     # ------------------------------------------------------------------------- #
     def set_timeout(self, timeout: float) -> None:
-        """设置请求超时时间（秒）。"""
+        """设置请求超时时间（秒）。
+
+        Args:
+            timeout: 单次 HTTP 请求的超时时间，单位秒，对后续所有请求生效。
+
+        Returns:
+            无返回值。
+        """
         self._timeout = timeout
 
     def get_share_info_by_url(self, f_url: str, pwd: str = "") -> ShareInfo:
-        """获取分享文件信息 和 get_file_info_by_url 类似，少一个下载直链"""
+        """获取分享文件的信息，与 `get_file_info_by_url()` 类似但不含下载直链。
+
+        Args:
+            f_url: 蓝奏云文件分享链接。
+            pwd: 分享链接的提取码；无提取码时保留为空字符串。
+
+        Returns:
+            `ShareInfo`。成功时 `code` 为 `LanZouCloud.SUCCESS`；失败时为
+            `URL_INVALID`（非文件链接）、`FILE_CANCELLED`（文件已取消分享）、
+            `LACK_PASSWORD`（需要提取码但未提供）、`PASSWORD_ERROR`（提取码错误）
+            或 `NETWORK_ERROR`。
+        """
         if not is_file_url(f_url):
             return ShareInfo(LanZouCloud.URL_INVALID)
         first_page = self._get(f_url)  # 文件分享页面(第一页)
