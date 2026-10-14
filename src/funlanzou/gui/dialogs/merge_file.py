@@ -1,5 +1,5 @@
 import os
-from pickle import load
+import pickle
 
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QPixmap, QIcon
@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
     QFileDialog,
 )
 
-from funlanzou.debug import SRC_DIR
+from funlanzou.debug import SRC_DIR, logger
 from funlanzou.gui.others import MyLineEdit
 from funlanzou.gui.qss import others_style, btn_style
 
@@ -50,12 +50,15 @@ def un_serialize(folder):
     record = {}
     try:
         with open(record_file, "rb") as f_handle:
-            _record = load(f_handle)
+            _record = pickle.load(f_handle)
         if isinstance(_record, dict):
             record = _record
-    except Exception as e:  # 这里可能会丢奇怪的异常
-        # logger.debug(f"Pickle e={e}")
-        pass
+    except (OSError, EOFError, pickle.UnpicklingError, AttributeError,
+            ImportError, IndexError, TypeError, ValueError) as error:
+        logger.warning(
+            f"读取合并记录文件失败: path={record_file} "
+            f"reason={type(error).__name__}"
+        )
     if not record:
         msg = f"{record_file} : 记录文件不对"
         return False, msg

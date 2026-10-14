@@ -25,6 +25,16 @@
 
 ### 修复
 
+- 版本号改为单一来源：`script/__version__.md` 与 `pyproject.toml` 同步为 `0.2.0`
+  （发版时由 `funbuild` 递增），`funlanzou.api.version` 改为读取发行元数据，
+  `funlanzou.gui.version` 直接复用它，源码里不再各留一份硬编码副本（此前漂移成
+  API `2.6.8`、GUI `0.6.8`、发行包 `0.2.0`）。
+- 合并分卷文件时，损坏或无法读取的记录文件现在会记录包含文件路径的错误上下文，
+  不再吞掉所有异常。
+- `LanZouCloud` 及其全部公开方法补齐中文 docstring（含 `Args`/`Returns` 与状态码
+  说明），`funlanzou.api` 的 `why_error`、`ItemList` 容器方法同步补齐；新增
+  `tests/test_compliance.py` 用例锁定「公开 API 必须有中文文档」与「版本号单一
+  来源」两条规范，防止回归。
 - 源码布局迁移到标准 `src/funlanzou/`、`src/lanzou/`，同步更新
   `[tool.hatch.build.targets.wheel]` 打包配置。
 - `funlanzou/debug.py` 不再在 import 时创建配置目录、配置全局 logging
@@ -96,7 +106,7 @@
 - `LanZouCloud.login`（账号密码登录）：官方登录页改版后对多数新账号已失效，
   调用时现在会发出 `DeprecationWarning`，请改用 `login_by_cookie()`
   （配合 `funlanzou.login_assister` 或浏览器 Cookie 导出获取 Cookie）。计划
-  在下一次破坏性版本中移除。
+  在 `1.0`（下一次破坏性版本）移除。
 - `lanzou` 兼容层的废弃状态延续自 0.2.0，见下。
 
 ## [0.2.0] - 2026-08-28
